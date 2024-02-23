@@ -1,0 +1,21 @@
+{
+    "Map/SizeTest": {
+        "height": 4300,
+        "width": 2
+    },
+    "activeFile": "",
+    "expandedProjectPaths": [
+    ],
+    "fileStates": {
+    },
+    "last.imagePath": "C:/raylib/npp/PlatformerRetry/resources/Sprites/14-TileSets",
+    "map.height": 16,
+    "map.renderOrder": null,
+    "map.width": 160,
+    "openFiles": [
+    ],
+    "project": "2dPlatformer.tiled-project",
+    "recentFiles": [
+    ],
+    "tileset.lastUsedFormat": "tsx"
+}
