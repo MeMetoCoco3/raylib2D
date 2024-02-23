@@ -74,11 +74,17 @@ int main (void){
     
     const int screen_width = 512;
     const int screen_height = 512;
-
+    
+    InitWindow(screen_width, screen_height, "Retry");
+    InitAudioDevice();
+    
     Texture2D playerSprites[3];
     playerSprites[0] = LoadTexture("resources/kingpig/idle.png");
     playerSprites[1] = LoadTexture("resources/kingpig/run.png");
     playerSprites[2] = LoadTexture("resources/kingpig/jump.png");
+    playerSprites[0].width = -abs(playerSprites[0].width);
+    playerSprites[1].width = -abs(playerSprites[1].width);
+    playerSprites[2].width = -abs(playerSprites[2].width);
     
     Rectangle sourceRecs[3];
     sourceRecs[0] = (Rectangle) {0.0f, 0.0f, (float) playerSprites[0].width/NUM_FRAMES(playerSprites[0].width), playerSprites[0].height};
@@ -89,7 +95,7 @@ int main (void){
     soundArr[0] = LoadSound("resources/audio/pig_grunt.mp3"); 
     soundArr[1] = LoadSound("resources/audio/pig_dash.mp3");
     
-    //playerIdleAnim.width = -abs(playerIdleAnim.width);
+
            
     
     Player player = { 0 };
@@ -290,7 +296,7 @@ void PlayerUpdate (Player *p, EnvItem *envItems, int envItemsLength, float delta
         {
             grounded = 1;
             p -> jumpSpeed = 0.0f;
-            //printf("%s", "CHECKS DOWN");
+
         }
         //Checks UP
         if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width/2, collisionBox->y + p->jumpSpeed*deltaTime}, ei->rect) &&
@@ -301,7 +307,7 @@ void PlayerUpdate (Player *p, EnvItem *envItems, int envItemsLength, float delta
         {          
             p -> jumpSpeed = 0.0f;   
             p -> position.y = ei->rect.y + ei->rect.height+collisionBox->height/2;
-            printf("%s", "CHECKS UP");
+
         }
         
         //Checks RIGHT
@@ -313,7 +319,7 @@ void PlayerUpdate (Player *p, EnvItem *envItems, int envItemsLength, float delta
         {          
             p->position.x = ei->rect.x - collisionBox->width/2;
             p->speed = 0;
-            printf("%s", "CHECKS RIGHT");
+
         }
         //Checks LEFT
         if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + p->speed*deltaTime, collisionBox->y + collisionBox->height/2}, ei->rect) && 
@@ -324,11 +330,8 @@ void PlayerUpdate (Player *p, EnvItem *envItems, int envItemsLength, float delta
         {          
             p->position.x = ei->rect.x + ei->rect.width + collisionBox->width/2;
             p->speed = 0;
-            printf("%s", "CHECKS LEFT");
-        }
-        
 
-        
+        }
      
     }
     if(!grounded)
@@ -360,6 +363,13 @@ void ChangeSprite(Player *player, Texture2D* sprites, Rectangle* sourceRecs){
         switch(player->currentState)
         {
             case IDLE:
+                /*if (player->direction == RIGHT){
+                    sprites->width = -abs(sprites->width);
+                } else sprites->width = abs(sprites->width);
+                */
+                if (player->direction == RIGHT){
+                    sourceRecs->width = abs(sourceRecs->width);
+                } else sourceRecs->width = -abs(sourceRecs->width);
                 player->sprite = *sprites;
                 player->sourceRec = *sourceRecs;
                 break;
