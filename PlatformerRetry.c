@@ -7,130 +7,58 @@
     p->speed >= p->speed * deltaTime; 
 */
 
-# include "stdio.h"
-# include "raylib.h"
-# include "raymath.h"
-
-# define P_MAX_SPEED  225.0f
-# define P_ACCELERATION 20.0f
-# define P_DEACELERATION 50.0f
-# define P_JUMP_SPEED 500.0f  
-# define G 2000
-# define CAM_DISTANCE 40.0f
-# define MAX_STEPS 15
-# define DASH_SPEED 2
-
-# define DASH_RECOVERY 60 
-# define DASHING 15
-# define COLLISION_SIDE 18
-# define FLOOR 408
-
-# define NUM_FRAMES(image_width) (image_width/38)
+// LIBRARIES
+# include <stdio.h>
+# include <stdlib.h>
+# include "C:\Users\torre\OneDrive\Desktop\raylib\raylib.h"
+# include "C:\Users\torre\OneDrive\Desktop\raylib\raymath.h"
+# include "constants.h"
+# include "structs.h"
 
 
-
-enum Direction{
-    LEFT,
-    RIGHT  
-};
-
-enum States{
-    IDLE,
-    RUN,
-    JUMP
-};
-
-typedef struct {
-    Vector2 position;
-    Vector2 size;
-    Rectangle collisionBox;
-    float speed;
-    float acceleration;
-    float maxSpeed;
-    float jumpSpeed;
-    float fallSpeed;
-    bool canJump;
-    enum Direction direction;
-    int canDash;
-    int dashing;
-    Texture2D sprite;
-    Rectangle sourceRec;
-    enum States currentState;
-    enum States prevState;
-} Player;
-
-typedef struct {
-    Rectangle rect;
-    int blocking;
-    Color color; 
-    Texture2D texture;
-} EnvItem ;
-
-void PlayerUpdate (Player *p, EnvItem *envItems, int envItemsLength, float deltaTime, Sound *soundArr);
-void SwapPlayerSprite (Player *player);
-void ChangeSprite(Player *player, Texture2D *sprites, Rectangle *sourceRecs);
+Player PlayerInstance(int kOrP);
+Sound* SoundInstance(void);
+Camera2D* CameraInstance(Player *player);
+void PlayerUpdate (Player *p, float deltaTime, Sound *soundArr);
+void CheckColision(Player *player, EnvItem *envItems, int envItemsLength, float deltaTime);
+void ChangeSprite(Player *player, int *frameCounter, int frameSpeed, int *currentFrame);
+void CameraUpdate (Player *player, Camera2D *camera, int *steps, int *direction, float deltaTime);
 
 int main (void){
     
-    const int screen_width = 512;
-    const int screen_height = 512;
-    
-    InitWindow(screen_width, screen_height, "Retry");
-    InitAudioDevice();
-    
-    Texture2D playerSprites[3];
-    playerSprites[0] = LoadTexture("resources/kingpig/idle.png");
-    playerSprites[1] = LoadTexture("resources/kingpig/run.png");
-    playerSprites[2] = LoadTexture("resources/kingpig/jump.png");
-    playerSprites[0].width = -abs(playerSprites[0].width);
-    playerSprites[1].width = -abs(playerSprites[1].width);
-    playerSprites[2].width = -abs(playerSprites[2].width);
-    
-    Rectangle sourceRecs[3];
-    sourceRecs[0] = (Rectangle) {0.0f, 0.0f, (float) playerSprites[0].width/NUM_FRAMES(playerSprites[0].width), playerSprites[0].height};
-    sourceRecs[1] = (Rectangle) {0.0f, 0.0f, (float) playerSprites[1].width/NUM_FRAMES(playerSprites[1].width), playerSprites[1].height};
-    sourceRecs[2] = (Rectangle) {0.0f, 0.0f, (float) playerSprites[2].width/NUM_FRAMES(playerSprites[2].width), playerSprites[2].height};
-    
-    Sound soundArr[2];
-    soundArr[0] = LoadSound("resources/audio/pig_grunt.mp3"); 
-    soundArr[1] = LoadSound("resources/audio/pig_dash.mp3");
-    
-
-           
-    
-    Player player = { 0 };
-    player.position = (Vector2) {screen_width/4, screen_height-120};
-    player.collisionBox = (Rectangle) {player.position.x-COLLISION_SIDE/2, player.position.y-COLLISION_SIDE/2, COLLISION_SIDE, COLLISION_SIDE};
-    player.size = (Vector2) {32, 32}; 
-    player.speed = 0;
-    player.acceleration = P_ACCELERATION;
-    player.maxSpeed = P_MAX_SPEED;
-    player.jumpSpeed = 0;
-    player.canJump = true;
-    player.canDash = 0;
-    player.dashing = 0;
-    player.direction = RIGHT;
-    player.sprite = playerSprites[0];
-    player.sourceRec = sourceRecs[0];
-    player.currentState = IDLE;
-    player.prevState = player.currentState;
-    enum Direction prevDirection = player.direction;
+    // SET SCREEN AND AUDIO
+    InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "Retry");
     
     
+    // PLAYER SOUNDS
+    Sound *soundArr = SoundInstance(); 
+    
+    // PLAYER INSTANCE
+    Player pig = PlayerInstance(PIG);
+    Player player = PlayerInstance(KATUSHA);
+    
+    int characterChange = 0;
+    
+    // CAMERA INSTANCE
+    Camera2D *camera = CameraInstance(&pig);
+    /*
     Camera2D camera = { 0 };
     camera.target = (Vector2){ player.position.x, player.position.y};
-    camera.offset = (Vector2){ screen_width/2.0f, screen_height/2.0f};
+    camera.offset = (Vector2){ SCREEN_WIDTH/2.0f, SCREEN_HEIGHT/2.0f};
     camera.rotation = 0.0f;
     camera.zoom = 2;
+    */
+    // CAMERA PROPERTIES
     int steps = 0;
     int direction = 0;
     int frameCounter = 0;
     int currentFrame = 0;
     int frameSpeed = 8;
     
+    // ENVIRONMENT 
     EnvItem envItems [] = {
-        {{0, FLOOR+50, screen_width*20, 50}, 1, GREEN},
-        {{0, FLOOR+50, screen_width*20, 50}, 1, GREEN},
+        {{0, FLOOR+50, SCREEN_WIDTH*20, 50}, 1, GREEN},
+        {{0, FLOOR+50, SCREEN_WIDTH*20, 50}, 1, GREEN},
         {{200, 400 , 32, 32}, 2, RED},
         {{150, 400 , 32, 32}, 2, RED},
         {{100, 350 , 32, 32}, 2, RED},
@@ -141,78 +69,38 @@ int main (void){
     };
     int envItemsLength = sizeof(envItems)/sizeof(envItems[0]);
     
+    // FPS
     SetTargetFPS(60);
 
     while (!WindowShouldClose()) {
-        
         float deltaTime = GetFrameTime();
         
-        Vector2* p = &(player.position);
-        Vector2* pCam = &(camera.target);
-        player.collisionBox = (Rectangle) {p->x-COLLISION_SIDE/2, p->y-COLLISION_SIDE/2, COLLISION_SIDE, COLLISION_SIDE};
+        // CALL FUNCTIONS    
+        if (IsKeyReleased(KEY_K)) characterChange++;
+        if (characterChange%2 == 0){
+            PlayerUpdate(&player, deltaTime, soundArr);   
+            CameraUpdate (&player, camera, &steps, &direction, deltaTime);}       
+        else{
+            PlayerUpdate(&pig, deltaTime, soundArr);   
+            CameraUpdate (&pig, camera, &steps, &direction, deltaTime);}   
         
-        static float minSpeed = 30;
-        static float minEffectLength = 2;
-        static float fractionSpeed = 4.0f;
-
-        if (player.speed>0) {
-            direction = 1;
-            player.direction = RIGHT;
-            steps++;
-        }else if (player.speed<0){
-            direction = -1;
-            player.direction = LEFT;
-            steps++;}
+        CheckColision(&player, envItems, envItemsLength, deltaTime);
+        CheckColision(&pig, envItems, envItemsLength, deltaTime);
         
-        if (player.direction != prevDirection)
-        {
-            steps = 0;
-            prevDirection = player.direction;
-        }
+        ChangeSprite(&player, &frameCounter, frameSpeed, &currentFrame);
+        ChangeSprite(&pig, &frameCounter, frameSpeed, &currentFrame);
         
-        Vector2 diff = Vector2Subtract((Vector2){p->x+CAM_DISTANCE*direction,p->y}, *pCam);
-        float length = Vector2Length(diff);
-
-        if (length >= minEffectLength && steps >= MAX_STEPS)
-        {
-            float speed = fmaxf(fractionSpeed*length, minSpeed);
-            *pCam = Vector2Add(*pCam, Vector2Scale(diff, speed*deltaTime/length));
-        }
-        
-        pCam->y = p->y;
-        
-        frameCounter++;
-        if(frameCounter >= (60/frameSpeed))
-        {
-            frameCounter = 0;
-            currentFrame++;
-            
-            if(currentFrame>3) currentFrame = 0;
-            player.sourceRec.x = abs(currentFrame*player.sprite.width/NUM_FRAMES(player.sprite.width));
-            
-            if (player.speed < 0) {
-                player.sourceRec.width = -abs(player.sourceRec.width);}
-            else if (player.speed > 0) {
-                player.sourceRec.width = abs(player.sourceRec.width);}
-            
-        }
-        
-        
-        PlayerUpdate(&player, envItems, envItemsLength, deltaTime, soundArr);   
-        ChangeSprite(&player, playerSprites, sourceRecs);
-        SwapPlayerSprite(&player);
-        
-        BeginDrawing();
-            
-            BeginMode2D(camera);
+        // DRAW
+        BeginDrawing();  
+            BeginMode2D(*camera);
                 ClearBackground(RAYWHITE);
+                for (int i = 1; i < envItemsLength; i++) DrawRectangleRec(envItems[i].rect, envItems[i].color);
                 
-                for (int i = 1; i < envItemsLength; i++) DrawRectangleRec(envItems[i].rect, envItems[i].color); 
-
-                DrawTextureRec(player.sprite, player.sourceRec, (Vector2){player.position.x-player.size.x/2-3, player.position.y-player.size.y/2}, WHITE);
+                DrawTextureRec(player.sprite, player.sourceRec, (Vector2){player.position.x-player.size.x/2-4, player.position.y-player.size.y/2}, WHITE);
+                DrawTextureRec(pig.sprite, pig.sourceRec, (Vector2){pig.position.x-pig.size.x/2-4, pig.position.y-pig.size.y/2}, WHITE);
+                
                 DrawRectangleLines(player.collisionBox.x, player.collisionBox.y,player.collisionBox.width,player.collisionBox.height, RED);
-   
-
+                DrawRectangleLines(pig.collisionBox.x, pig.collisionBox.y,pig.collisionBox.width,pig.collisionBox.height, RED);
             EndMode2D();
         EndDrawing();
     }
@@ -220,24 +108,164 @@ int main (void){
     return 0;
 }
 
-
-void PlayerUpdate (Player *p, EnvItem *envItems, int envItemsLength, float deltaTime, Sound *soundArr){
+Player PlayerInstance(int kOrP){  
+    /*
+        Katusha = 1;
+        Pig = 0
     
+    */  
+    switch (kOrP){ 
+        case KATUSHA:
+            Texture2D* playerSpritesK = malloc(sizeof(Texture2D)*3);
+            playerSpritesK[0] = LoadTexture("resources/kingpig/idleK.png");
+            playerSpritesK[1] = LoadTexture("resources/kingpig/runK.png");
+            playerSpritesK[2] = LoadTexture("resources/kingpig/jump.png");
+            playerSpritesK[0].width = -abs(playerSpritesK[0].width);
+            playerSpritesK[1].width = -abs(playerSpritesK[1].width);
+            playerSpritesK[2].width = -abs(playerSpritesK[2].width);
+            
+            Rectangle* sourceRecsK = malloc(sizeof(Rectangle)*3);
+            sourceRecsK[0] = (Rectangle) {0.0f, 0.0f, (float) playerSpritesK[0].width/NUM_FRAMES(playerSpritesK[0].width), playerSpritesK[0].height};
+            sourceRecsK[1] = (Rectangle) {0.0f, 0.0f, (float) playerSpritesK[1].width/NUM_FRAMES(playerSpritesK[1].width), playerSpritesK[1].height};
+            sourceRecsK[2] = (Rectangle) {0.0f, 0.0f, (float) playerSpritesK[2].width/NUM_FRAMES(playerSpritesK[2].width), playerSpritesK[2].height};
+
+            Player player = { 0 };
+            player.position = (Vector2) {SCREEN_WIDTH/4, SCREEN_HEIGHT-120};
+            player.collisionBox = (Rectangle) {player.position.x-COLLISION_SIDE/2, player.position.y-COLLISION_SIDE/2, COLLISION_SIDE, COLLISION_SIDE};
+            player.size = (Vector2) {32, 32}; 
+            player.speed = 0;
+            player.acceleration = P_ACCELERATION;
+            player.maxSpeed = P_MAX_SPEED;
+            player.jumpSpeed = 0;
+            player.canJump = true;
+            player.canDash = 0;
+            player.dashing = 0;
+            player.direction = RIGHT;
+            player.sprite = playerSpritesK[0];
+            player.baseSpr = playerSpritesK;
+            player.sourceRec = sourceRecsK[0];
+            player.baseSourceRec = sourceRecsK;
+            player.currentState = IDLE;
+            player.prevState = player.currentState;
+            player.character = Katusha;
+            player.prevDirection = player.direction;
+            
+            return player;
+        
+        case PIG:
+            Texture2D* playerSpritesP = malloc(sizeof(Texture2D)*3);
+            playerSpritesP[0] = LoadTexture("resources/kingpig/idleP.png");
+            playerSpritesP[1] = LoadTexture("resources/kingpig/runP.png");
+            playerSpritesP[2] = LoadTexture("resources/kingpig/jump.png");
+            playerSpritesP[0].width = -abs(playerSpritesP[0].width);
+            playerSpritesP[1].width = -abs(playerSpritesP[1].width);
+            playerSpritesP[2].width = -abs(playerSpritesP[2].width);
+            
+            Rectangle* sourceRecsP = malloc(sizeof(Rectangle)*3);
+            sourceRecsP[0] = (Rectangle) {0.0f, 0.0f, (float) playerSpritesP[0].width/NUM_FRAMES(playerSpritesP[0].width), playerSpritesP[0].height};
+            sourceRecsP[1] = (Rectangle) {0.0f, 0.0f, (float) playerSpritesP[1].width/NUM_FRAMES(playerSpritesP[1].width), playerSpritesP[1].height};
+            sourceRecsP[2] = (Rectangle) {0.0f, 0.0f, (float) playerSpritesP[2].width/NUM_FRAMES(playerSpritesP[2].width), playerSpritesP[2].height};
+
+            Player pig = { 0 };
+            pig.position = (Vector2) {SCREEN_WIDTH/4, SCREEN_HEIGHT-200};
+            pig.collisionBox = (Rectangle) {pig.position.x-COLLISION_SIDE/2, pig.position.y-COLLISION_SIDE/2, COLLISION_SIDE, COLLISION_SIDE};
+            pig.size = (Vector2) {32, 32}; 
+            pig.speed = 0;
+            pig.acceleration = P_ACCELERATION;
+            pig.maxSpeed = P_MAX_SPEED;
+            pig.jumpSpeed = 0;
+            pig.canJump = true;
+            pig.canDash = 0;
+            pig.dashing = 0;
+            pig.direction = RIGHT;
+            pig.sprite = playerSpritesP[0];
+            pig.baseSpr = playerSpritesP;
+            pig.sourceRec = sourceRecsP[0];
+            pig.baseSourceRec = sourceRecsP;
+            pig.currentState = IDLE;
+            pig.prevState = pig.currentState;
+            pig.character = Pig;
+            pig.prevDirection = pig.direction;
+            
+            return pig;
+    }
+}
+Sound* SoundInstance(void){
+    InitAudioDevice();
+    
+    Sound* soundArr = malloc(sizeof(Sound)*2);
+    soundArr[0] = LoadSound("resources/audio/pig_grunt.mp3"); 
+    soundArr[1] = LoadSound("resources/audio/pig_dash.mp3");
+    return soundArr;
+}
+Camera2D* CameraInstance(Player *player){
+    Camera2D* camarita = malloc(sizeof(Camera2D));
+    camarita->target = (Vector2){ player->position.x, player->position.y};
+    camarita->offset = (Vector2){ SCREEN_WIDTH/2.0f, SCREEN_HEIGHT/2.0f};
+    camarita->rotation = 0.0f;
+    camarita->zoom = 2;
+    
+    return camarita;
+}
+void CameraUpdate(Player *player, Camera2D *camera, int *steps, int *direction, float deltaTime){
+    Vector2* pCam = &(camera->target);
+    
+    if (player->speed>0) {
+        (*direction) = 1;
+        player->direction = RIGHT;
+        (*steps)++;
+    }else if (player->speed<0){
+        (*direction) = -1;
+        player->direction = LEFT;
+        (*steps)++;
+        }
+        
+    if (player->direction != player->prevDirection) {
+        (*steps) = 0;
+        player->prevDirection = player->direction;
+        }
+        
+        Vector2 diff = Vector2Subtract((Vector2){player->position.x+CAM_DISTANCE*(*direction),player->position.y}, *pCam);
+        float length = Vector2Length(diff);
+
+    if (length >= MIN_EFFECT_LENGTH && (*steps) >= MAX_STEPS) {
+        float speed = fmaxf(FRACTION_SPEED*length, MIN_SPEED);
+        *pCam = Vector2Add(*pCam, Vector2Scale(diff, speed*deltaTime/length));
+        }
+        
+        pCam->y = player->position.y;
+    
+    
+}
+
+void PlayerUpdate (Player *p, float deltaTime, Sound *soundArr){
     if (IsKeyDown(KEY_LEFT) && p->speed > -p->maxSpeed) 
     {   
+        p->direction = LEFT;
         p->speed -= p->acceleration; 
+        
     }
     else if (IsKeyDown(KEY_RIGHT) && p->speed < p->maxSpeed) 
     {   
         p->speed += p->acceleration; 
+        p->direction = RIGHT;
     } 
     else if (p->speed > 0)
     {
+        p->direction = RIGHT;
         p->speed -= p->acceleration;
+        p->currentState = RUN;
     }
     else if (p->speed < 0)
     {
+        p->direction = LEFT;
         p->speed += p->acceleration;
+        p->currentState = RUN;
+    }
+    else if (p->speed == 0)
+    {
+        p->currentState = IDLE;
+        
     }
     
     if (IsKeyDown(KEY_SPACE) && p->canJump)
@@ -261,131 +289,136 @@ void PlayerUpdate (Player *p, EnvItem *envItems, int envItemsLength, float delta
         p->dashing--;
         p->position.x -= DASH_SPEED;
     }
-    
-    
     p->position.x += p->speed*deltaTime;
     
-    Vector2 *player = &(p->position);
+}
+void CheckColision(Player *player, EnvItem *envItems, int envItemsLength, float deltaTime){
     
+    Vector2 *p = &(player->position);
     int grounded = 0;
     for (int i = 0; i < envItemsLength; i++)
     {
         EnvItem *ei = envItems + i;
-        
         if (ei->blocking == 1 &&
-            ei->rect.x <= player->x  &&
-            ei->rect.x + ei->rect.width >= player->x &&
-            ei->rect.y >= player->y &&
-            ei->rect.y < player->y + p->jumpSpeed*deltaTime)
+            ei->rect.x <= p->x  &&
+            ei->rect.x + ei->rect.width >= p->x &&
+            ei->rect.y >= p->y &&
+            ei->rect.y < p->y + player->jumpSpeed*deltaTime)
         {
             grounded = 1;
-            p -> jumpSpeed = 0.0f;
-            player->y = ei->rect.y;
+            player -> jumpSpeed = 0.0f;
+            p->y = ei->rect.y;
         }
         
-        
-        
-        Rectangle *collisionBox = &(p->collisionBox);
-        
+        Rectangle *collisionBox = &(player->collisionBox);
         //Checks DOWN
-        if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width/2, collisionBox->y + collisionBox-> height + p->jumpSpeed*deltaTime}, ei->rect) &&
+        if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width/2, collisionBox->y + collisionBox-> height + player->jumpSpeed*deltaTime}, ei->rect) &&
             (
-            CheckCollisionPointRec((Vector2){collisionBox->x, collisionBox->y + collisionBox->height + p->jumpSpeed*deltaTime}, ei->rect) ||
-            CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width, collisionBox->y + collisionBox->height + p->jumpSpeed*deltaTime}, ei->rect))
+            CheckCollisionPointRec((Vector2){collisionBox->x, collisionBox->y + collisionBox->height + player->jumpSpeed*deltaTime}, ei->rect) ||
+            CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width, collisionBox->y + collisionBox->height + player->jumpSpeed*deltaTime}, ei->rect))
             )
         {
             grounded = 1;
-            p -> jumpSpeed = 0.0f;
+            player->jumpSpeed = 0.0f;
 
         }
         //Checks UP
-        if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width/2, collisionBox->y + p->jumpSpeed*deltaTime}, ei->rect) &&
+        if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width/2, collisionBox->y + player->jumpSpeed*deltaTime}, ei->rect) &&
             (
-            CheckCollisionPointRec((Vector2){collisionBox->x, collisionBox->y + p->jumpSpeed*deltaTime}, ei->rect) ||
-            CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width, collisionBox->y + p->jumpSpeed*deltaTime}, ei->rect))
+            CheckCollisionPointRec((Vector2){collisionBox->x, collisionBox->y + player->jumpSpeed*deltaTime}, ei->rect) ||
+            CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width, collisionBox->y + player->jumpSpeed*deltaTime}, ei->rect))
             )
         {          
-            p -> jumpSpeed = 0.0f;   
-            p -> position.y = ei->rect.y + ei->rect.height+collisionBox->height/2;
+            player->jumpSpeed = 0.0f;   
+            p->y = ei->rect.y + ei->rect.height+collisionBox->height/2;
 
         }
         
         //Checks RIGHT
-        if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width + p->speed*deltaTime, collisionBox->y + collisionBox->height/2}, ei->rect) && 
+        if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + collisionBox->width + player->speed*deltaTime, collisionBox->y + collisionBox->height/2}, ei->rect) && 
             (
-            CheckCollisionPointRec((Vector2){p->collisionBox.x + p->collisionBox.width + p->speed*deltaTime, p->collisionBox.y}, ei->rect) ||
-            CheckCollisionPointRec((Vector2){p->collisionBox.x + p->collisionBox.width + p->speed*deltaTime, p->collisionBox.y + p->collisionBox.height}, ei->rect))
+            CheckCollisionPointRec((Vector2){player->collisionBox.x + player->collisionBox.width + player->speed*deltaTime, player->collisionBox.y}, ei->rect) ||
+            CheckCollisionPointRec((Vector2){player->collisionBox.x + player->collisionBox.width + player->speed*deltaTime, player->collisionBox.y + player->collisionBox.height}, ei->rect))
             )
         {          
-            p->position.x = ei->rect.x - collisionBox->width/2;
-            p->speed = 0;
+            p->x = ei->rect.x - collisionBox->width/2;
+            player->speed = 0;
 
         }
         //Checks LEFT
-        if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + p->speed*deltaTime, collisionBox->y + collisionBox->height/2}, ei->rect) && 
+        if (ei->blocking == 2 && CheckCollisionPointRec((Vector2){collisionBox->x + player->speed*deltaTime, collisionBox->y + collisionBox->height/2}, ei->rect) && 
             (
-            CheckCollisionPointRec((Vector2){p->collisionBox.x + p->speed*deltaTime, p->collisionBox.y}, ei->rect) ||
-            CheckCollisionPointRec((Vector2){p->collisionBox.x + p->speed*deltaTime, p->collisionBox.y + p->collisionBox.height}, ei->rect))
+            CheckCollisionPointRec((Vector2){player->collisionBox.x + player->speed*deltaTime, player->collisionBox.y}, ei->rect) ||
+            CheckCollisionPointRec((Vector2){player->collisionBox.x + player->speed*deltaTime, player->collisionBox.y + player->collisionBox.height}, ei->rect))
             )
         {          
-            p->position.x = ei->rect.x + ei->rect.width + collisionBox->width/2;
-            p->speed = 0;
+            p->x = ei->rect.x + ei->rect.width + collisionBox->width/2;
+            player->speed = 0;
 
         }
      
     }
     if(!grounded)
     {   
-        p->position.y += p->jumpSpeed*deltaTime; 
-        p->jumpSpeed += G*deltaTime;
+        p->y += player->jumpSpeed*deltaTime; 
+        player->jumpSpeed += G*deltaTime;
         
-    } else 
-    {   
-        p->currentState = JUMP;
-        p->canJump = true;
-    }
-    if (grounded && p->speed != 0){
-        p->currentState = RUN;
-    } else if (grounded && p->speed == 0){
-        p->currentState = IDLE;
+    } else player->canJump = true;
+    
+    if (grounded && player->speed != 0){
+        player->currentState = RUN;
+    } else if (grounded && player->speed == 0){
+        player->currentState = IDLE;
     }
     
+    player->collisionBox = (Rectangle) {player->position.x-COLLISION_SIDE/2, player->position.y-COLLISION_SIDE/2, COLLISION_SIDE, COLLISION_SIDE};
+    
 }
-
-void SwapPlayerSprite (Player *player){
-    if (player->prevState != player->currentState){
-        player->prevState = player->currentState;
-    }  
-}
-
-void ChangeSprite(Player *player, Texture2D* sprites, Rectangle* sourceRecs){
-    if (player->prevState != player->currentState){
+void ChangeSprite(Player *player, int *frameCounter, int frameSpeed, int *currentFrame){
+    
+    Rectangle *p = &(player->sourceRec); 
+    switch (player->direction)
+        {
+            case LEFT:
+                p->width = -abs(p->width);
+                break;
+                
+            case RIGHT:
+                p->width = abs(p->width);
+                break;
+        }
+      
+    if (player->currentState != player->prevState){   
         switch(player->currentState)
         {
             case IDLE:
-                /*if (player->direction == RIGHT){
-                    sprites->width = -abs(sprites->width);
-                } else sprites->width = abs(sprites->width);
-                */
-                if (player->direction == RIGHT){
-                    sourceRecs->width = abs(sourceRecs->width);
-                } else sourceRecs->width = -abs(sourceRecs->width);
-                player->sprite = *sprites;
-                player->sourceRec = *sourceRecs;
+                player->sprite = *(player->baseSpr);
+                player->sourceRec = *(player->baseSourceRec);
                 break;
             
             case RUN:
-                player->sprite = *(sprites + 1);
-                player->sourceRec = *(sourceRecs + 1);
+                player->sprite = *(player->baseSpr + 1);
+                player->sourceRec = *(player->baseSourceRec + 1);
                 break;
                 
             case JUMP:
-                player->sprite = *(sprites + 2);
-                player->sourceRec = *(sourceRecs + 2);
+                player->sprite = *(player->baseSpr + 2);
+                player->sourceRec = *(player->baseSourceRec + 2);
                 break;
  
         }
+        player->prevState = player->currentState;
     }
     
+    (*frameCounter)++;
+    if((*frameCounter) >= 60/frameSpeed)
+    {
+        (*frameCounter) = 0;
+        (*currentFrame)++;
+        if((*currentFrame)>=6) (*currentFrame) = 0;
+        p->x = abs((*currentFrame)*p->width/NUM_FRAMES(p->width));     
+    }
 }
+
+
 
